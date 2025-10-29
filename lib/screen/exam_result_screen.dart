@@ -3,12 +3,14 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+
+// Screens
 import 'package:lab7_101/screen/add_exam_result_screen.dart';
 import 'package:lab7_101/screen/edit_exam_result_screen.dart';
 
 // Model
 import '../model/exam_result.dart';
-// Screens
+
 class ExamResultScreen extends StatefulWidget {
   const ExamResultScreen({super.key});
   static const routeName = '/';
@@ -23,9 +25,10 @@ class _ExamResultScreenState extends State<ExamResultScreen> {
   @override
   void initState() {
     super.initState();
-    examResults = fetchExamResults();
+    examResults = fetchExamResults(); // เรียกฟังก์ชัน API
   }
 
+  // ฟังก์ชันรีเฟรชข้อมูลหลังจากเพิ่ม/แก้ไข/ลบข้อมูล
   void _refreshData() {
     setState(() {
       examResults = fetchExamResults();
@@ -53,7 +56,7 @@ class _ExamResultScreenState extends State<ExamResultScreen> {
         ],
       ),
       body: FutureBuilder<List<ExamResult>>(
-        future: examResults,
+        future: examResults, // ใช้ FutureBuilder สำหรับการแสดงผล
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -90,6 +93,7 @@ class _ExamResultScreenState extends State<ExamResultScreen> {
                       trailing: Wrap(
                         spacing: 8,
                         children: [
+                          // ปุ่มแก้ไข
                           IconButton(
                             icon: const Icon(Icons.edit, color: Colors.blue),
                             onPressed: () async {
@@ -104,6 +108,7 @@ class _ExamResultScreenState extends State<ExamResultScreen> {
                               if (updated == true) _refreshData();
                             },
                           ),
+                          // ปุ่มลบ
                           IconButton(
                             icon: const Icon(Icons.delete, color: Colors.red),
                             onPressed: () async {
@@ -183,6 +188,8 @@ class _ExamResultScreenState extends State<ExamResultScreen> {
 }
 
 // ---------------- API Functions ----------------
+
+// ฟังก์ชันดึงข้อมูลผลการสอบ
 Future<List<ExamResult>> fetchExamResults() async {
   final response = await http.get(
     Uri.parse('http://192.168.56.1/pakapol/api/exam_results.php'),
@@ -196,11 +203,13 @@ Future<List<ExamResult>> fetchExamResults() async {
   }
 }
 
+// ฟังก์ชันแปลงข้อมูล JSON เป็น ExamResult
 List<ExamResult> parseExamResults(String responseBody) {
   final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
   return parsed.map<ExamResult>((json) => ExamResult.fromJson(json)).toList();
 }
 
+// ฟังก์ชันลบผลการสอบ
 Future<int> deleteExamResult(ExamResult result) async {
   try {
     final response = await http.delete(
@@ -213,4 +222,4 @@ Future<int> deleteExamResult(ExamResult result) async {
     debugPrint('Error during http.delete: $e');
     return 0;
   }
-} 
+}

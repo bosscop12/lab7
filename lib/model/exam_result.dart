@@ -22,4 +22,6 @@ class ExamResult {
       point: double.parse((json['point'] ?? '0.0').toString()),
     );
   }
+
+  Object? get courseCode => null;
 }
