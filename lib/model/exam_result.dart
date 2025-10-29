@@ -1,27 +1,46 @@
+// model/exam_result.dart
+
 class ExamResult {
+  // ⭐️ 1. นำ id กลับมา
+  final int id;
   final String studentCode;
   final String studentName;
-  // 1. เปลี่ยนชนิดข้อมูลจาก int เป็น double เพื่อรองรับทศนิยม
-  final double point;
+  final String courseCode;
+  final String courseName;
+  final int point;
 
   ExamResult({
+    // ⭐️ 1. นำ id กลับมา
+    required this.id,
     required this.studentCode,
     required this.studentName,
+    required this.courseCode,
+    required this.courseName,
     required this.point,
   });
 
-  // ส่วนของ name constructor ที่จะแปลง json string มาเป็น ExamResult object
+  // Factory constructor สำหรับแปลง JSON ที่ได้รับจาก API
   factory ExamResult.fromJson(Map<String, dynamic> json) {
     return ExamResult(
-      // ใช้ '??' เพื่อกำหนดค่าเริ่มต้นเป็นข้อความว่าง ('') หากข้อมูลที่ได้รับมาเป็น null
+      // ⭐️ 1. นำ id กลับมา
+      id: int.tryParse(json['id'].toString()) ?? 0,
       studentCode: json['student_code'] ?? '',
-      studentName: json['course_code'] ?? '',
-
-      // 2. เปลี่ยนจาก int.parse เป็น double.parse เพื่อแปลงเลขทศนิยม
-      // โดยกำหนดค่าเริ่มต้นเป็น '0.0' หากเป็น null
-      point: double.parse((json['point'] ?? '0.0').toString()),
+      studentName: json['student_name'] ?? '',
+      courseCode: json['course_code'] ?? '',
+      courseName: json['course_name'] ?? '',
+      // ⭐️ (แก้ไข) แก้ point ที่เคยให้ค่า default 10 เป็น 0
+      point: int.tryParse(json['point'].toString()) ?? 0,
     );
   }
 
-  Object? get courseCode => null;
+  // ฟังก์ชันสำหรับแปลง Object เป็น JSON เพื่อส่งไปให้ API (สำหรับ Add/Update)
+  Map<String, dynamic> toJson() {
+    return {
+      // 'id' ไม่ต้องส่งไปใน body เพราะ API (PHP) ไม่ได้ใช้
+      'student_code': studentCode,
+      'course_code': courseCode,
+      // ⭐️ 2. (สำคัญ) ส่ง point เป็น int (number) ไม่ใช่ String
+      'point': point,
+    };
+  }
 }

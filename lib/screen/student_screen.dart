@@ -37,21 +37,21 @@ class _StudentScreenState extends State<StudentScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Student'),
+        title: const Text('Student'),
         actions: [
           IconButton(
             onPressed: () async {
               final result = await Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => AddStudentScreen(),
+                  builder: (context) => const AddStudentScreen(),
                 ),
               );
               if (result == true) {
                 _refreshData(); // refresh list หลังจากเพิ่มเสร็จ
               }
             },
-            icon: Icon(Icons.add),
+            icon: const Icon(Icons.add),
           ),
         ],
       ),
@@ -81,11 +81,23 @@ class _StudentScreenState extends State<StudentScreen> {
                         ? ListView.separated(
                             itemCount: snapshot.data!.length,
                             itemBuilder: (context, index) {
+                              final student = snapshot.data![index];
                               return ListTile(
-                                title: Text(snapshot.data![index].studentName),
-                                subtitle: Text(
-                                  snapshot.data![index].studentCode,
+                                leading: CircleAvatar(
+                                  backgroundColor: Colors.teal.shade200,
+                                  child: Text(
+                                    student.gender.isNotEmpty
+                                        ? student.gender[0].toUpperCase()
+                                        : '?',
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold),
+                                  ),
                                 ),
+                                title: Text(student.studentName),
+                                subtitle: Text(
+                                  'Code: ${student.studentCode}\nGender: ${student.gender}',
+                                ),
+                                isThreeLine: true, // 👈 ให้แสดงได้หลายบรรทัด
                                 trailing: Wrap(
                                   children: [
                                     IconButton(
@@ -95,7 +107,7 @@ class _StudentScreenState extends State<StudentScreen> {
                                           MaterialPageRoute(
                                             builder: (context) =>
                                                 EditStudentScreen(
-                                              student: snapshot.data![index],
+                                              student: student,
                                             ),
                                           ),
                                         );
@@ -103,7 +115,7 @@ class _StudentScreenState extends State<StudentScreen> {
                                           _refreshData(); // refresh หลังจากแก้ไขเสร็จ
                                         }
                                       },
-                                      icon: Icon(Icons.edit),
+                                      icon: const Icon(Icons.edit),
                                     ),
                                     IconButton(
                                       onPressed: () async {
@@ -111,9 +123,10 @@ class _StudentScreenState extends State<StudentScreen> {
                                           context: context,
                                           builder: (BuildContext context) =>
                                               AlertDialog(
-                                                title: Text('Confirm Delete'),
+                                                title:
+                                                    const Text('Confirm Delete'),
                                                 content: Text(
-                                                  "Do you want to delete: ${snapshot.data![index].studentCode}",
+                                                  "Do you want to delete: ${student.studentCode}",
                                                 ),
                                                 actions: <Widget>[
                                                   TextButton(
@@ -125,12 +138,11 @@ class _StudentScreenState extends State<StudentScreen> {
                                                     ),
                                                     onPressed: () async {
                                                       await deleteStudent(
-                                                        snapshot.data![index],
-                                                      );
+                                                          student);
                                                       _refreshData();
                                                       Navigator.pop(context);
                                                     },
-                                                    child: Text('Delete'),
+                                                    child: const Text('Delete'),
                                                   ),
                                                   TextButton(
                                                     style: TextButton.styleFrom(
@@ -142,13 +154,13 @@ class _StudentScreenState extends State<StudentScreen> {
                                                     onPressed: () {
                                                       Navigator.pop(context);
                                                     },
-                                                    child: Text('Close'),
+                                                    child: const Text('Close'),
                                                   ),
                                                 ],
                                               ),
                                         );
                                       },
-                                      icon: Icon(Icons.delete),
+                                      icon: const Icon(Icons.delete),
                                     ),
                                   ],
                                 ),

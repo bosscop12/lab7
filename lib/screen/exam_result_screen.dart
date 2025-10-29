@@ -1,38 +1,48 @@
-import 'dart:async';
+// import 'dart:async'; // Removed
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
-// Screens
-import 'package:lab7_101/screen/add_exam_result_screen.dart';
-import 'package:lab7_101/screen/edit_exam_result_screen.dart';
-
-// Model
 import '../model/exam_result.dart';
+import 'add_exam_result_screen.dart';
+import 'edit_exam_result_screen.dart';
 
 class ExamResultScreen extends StatefulWidget {
-  const ExamResultScreen({super.key});
-  static const routeName = '/';
+  const ExamResultScreen({Key? key}) : super(key: key);
 
   @override
   State<ExamResultScreen> createState() => _ExamResultScreenState();
 }
 
 class _ExamResultScreenState extends State<ExamResultScreen> {
-  late Future<List<ExamResult>> examResults;
+  late Future<List<ExamResult>> _examResultsFuture;
 
   @override
   void initState() {
     super.initState();
-    examResults = fetchExamResults(); // เรียกฟังก์ชัน API
+    _examResultsFuture = fetchExamResults();
   }
 
-  // ฟังก์ชันรีเฟรชข้อมูลหลังจากเพิ่ม/แก้ไข/ลบข้อมูล
   void _refreshData() {
     setState(() {
-      examResults = fetchExamResults();
+      _examResultsFuture = fetchExamResults();
     });
+  }
+
+  Future<void> _handleNavigate({ExamResult? examResult}) async {
+    final route = MaterialPageRoute(
+      builder: (context) => examResult == null
+          ? const AddExamResultScreen()
+          : EditExamResultScreen(examResult: examResult),
+    );
+
+    final result = await Navigator.push(context, route);
+    if (result == true) {
+      _refreshData();
+    }
   }
 
   @override
@@ -42,184 +52,141 @@ class _ExamResultScreenState extends State<ExamResultScreen> {
         title: const Text('Exam Results'),
         actions: [
           IconButton(
+            onPressed: () => _handleNavigate(),
             icon: const Icon(Icons.add),
-            onPressed: () async {
-              final added = await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const AddExamResultScreen(),
-                ),
-              );
-              if (added == true) _refreshData();
-            },
           ),
         ],
       ),
       body: FutureBuilder<List<ExamResult>>(
-        future: examResults, // ใช้ FutureBuilder สำหรับการแสดงผล
+        future: _examResultsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
+          }
+          if (snapshot.hasError) {
             return Center(child: Text('Error: ${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          }
+          // (การกรองและเรียงลำดับถูกย้ายไปที่ parseExamResults แล้ว)
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(child: Text('No exam results found.'));
           }
 
-          final results = snapshot.data!;
-
-          return Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                color: Colors.teal.withOpacity(0.1),
-                child: Center(
-                  child: Text(
-                    'Total ${results.length} items',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+          final data = snapshot.data!;
+          return RefreshIndicator(
+            onRefresh: () async => _refreshData(),
+            child: ListView.builder(
+              itemCount: data.length,
+              itemBuilder: (context, index) {
+                final e = data[index];
+                // ================== MODIFICATION START ==================
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
                   ),
-                ),
-              ),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: results.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final result = results[index];
-                    return ListTile(
-                      title: Text(result.studentName),
-                      subtitle: Text(
-                          'Code: ${result.studentCode} - Points: ${result.point.toStringAsFixed(1)}'),
-                      trailing: Wrap(
-                        spacing: 8,
-                        children: [
-                          // ปุ่มแก้ไข
-                          IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.blue),
-                            onPressed: () async {
-                              final updated = await Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => EditExamResultScreen(
-                                    examResult: result,
-                                  ),
-                                ),
-                              );
-                              if (updated == true) _refreshData();
-                            },
-                          ),
-                          // ปุ่มลบ
-                          IconButton(
-                            icon: const Icon(Icons.delete, color: Colors.red),
-                            onPressed: () async {
-                              await showDialog(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: const Text('Confirm Delete'),
-                                  content: Text(
-                                      'Do you want to delete result for ${result.studentName}?'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () async {
-                                        try {
-                                          int statusCode =
-                                              await deleteExamResult(result);
-                                          Navigator.pop(context);
-                                          if (statusCode == 200) {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                    'Delete successful!'),
-                                                backgroundColor: Colors.green,
-                                              ),
-                                            );
-                                            _refreshData();
-                                          } else {
-                                            ScaffoldMessenger.of(context)
-                                                .showSnackBar(
-                                              SnackBar(
-                                                content: Text(
-                                                    'Delete failed. Status Code: $statusCode'),
-                                                backgroundColor: Colors.red,
-                                              ),
-                                            );
-                                          }
-                                        } catch (e) {
-                                          debugPrint('Error during delete: $e');
-                                          Navigator.pop(context);
-                                        }
-                                      },
-                                      style: TextButton.styleFrom(
-                                        backgroundColor: Colors.redAccent,
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      child: const Text('Delete'),
-                                    ),
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context),
-                                      style: TextButton.styleFrom(
-                                        backgroundColor: Colors.blueGrey,
-                                        foregroundColor: Colors.white,
-                                      ),
-                                      child: const Text('Close'),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
-                          ),
-                        ],
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.all(16.0),
+                    
+                    // ⭐️ 1. นำ leading (id) กลับมาแสดง
+                    leading: CircleAvatar(
+                      backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                      child: Text(
+                        e.id.toString(),
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.onPrimaryContainer,
+                        ),
                       ),
-                    );
-                  },
-                ),
-              ),
-            ],
+                    ),
+                    
+                    // Use a Column in the title to stack text vertically
+                    title: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          e.studentName,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          'Code: ${e.studentCode}',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(e.courseName),
+                        Text(
+                          'Course: ${e.courseCode}',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Points: ${e.point}',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                      ],
+                    ),
+                    // The onTap is now on the ListTile
+                    onTap: () => _handleNavigate(examResult: e),
+                    // We no longer need subtitle or trailing
+                  ),
+                );
+                // =================== MODIFICATION END ===================
+              },
+            ),
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _refreshData,
+        tooltip: 'Refresh',
         child: const Icon(Icons.refresh),
       ),
     );
   }
 }
 
-// ---------------- API Functions ----------------
+// ================== API FUNCTIONS (Modified) ==================
 
-// ฟังก์ชันดึงข้อมูลผลการสอบ
-Future<List<ExamResult>> fetchExamResults() async {
-  final response = await http.get(
-    Uri.parse('http://192.168.56.1/pakapol/api/exam_results.php'),
-  );
-
-  if (response.statusCode == 200) {
-    return compute(parseExamResults, response.body);
-  } else {
-    throw Exception(
-        'Failed to load exam results (status ${response.statusCode})');
-  }
-}
-
-// ฟังก์ชันแปลงข้อมูล JSON เป็น ExamResult
+/// ฟังก์ชันสำหรับแปลง JSON string ให้เป็น List<ExamResult>
 List<ExamResult> parseExamResults(String responseBody) {
-  final parsed = jsonDecode(responseBody).cast<Map<String, dynamic>>();
-  return parsed.map<ExamResult>((json) => ExamResult.fromJson(json)).toList();
+  final decoded = jsonDecode(responseBody) as List;
+  final list = decoded.map<ExamResult>((json) => ExamResult.fromJson(json)).toList();
+
+  // ⭐️ 2. กรองข้อมูลที่ id ไม่ใช่ 0
+  final filteredList = list.where((result) => result.id != 0).toList();
+
+  // ⭐️ 3. จัดเรียงข้อมูลตาม id (น้อยไปมาก)
+  filteredList.sort((a, b) => a.id.compareTo(b.id));
+
+  return filteredList;
 }
 
-// ฟังก์ชันลบผลการสอบ
-Future<int> deleteExamResult(ExamResult result) async {
+/// ฟังก์ชันสำหรับดึง Base URL ของ API ตาม Platform
+String getApiBaseUrl() {
+  if (kIsWeb) return 'http://localhost';
+  if (Platform.isAndroid) return 'http://10.0.2.2';
+  return 'http://localhost'; // Default for others (iOS, etc.)
+}
+
+/// ฟังก์ชันสำหรับดึงข้อมูลผลสอบทั้งหมดจาก API
+Future<List<ExamResult>> fetchExamResults() async {
+  final url = '${getApiBaseUrl()}/pakapol/api/exam_results.php';
   try {
-    final response = await http.delete(
-      Uri.parse(
-          'http://192.168.56.1/pakapol/api/exam_result.php?student_code=${result.studentCode}'),
-      headers: {'Content-Type': 'application/json; charset=UTF-8'},
-    );
-    return response.statusCode;
+    final response = await http.get(Uri.parse(url));
+    // .timeout(const Duration(seconds: 10)); // Removed
+
+    if (response.statusCode == 200) {
+      final body = utf8.decode(response.bodyBytes);
+      // compute จะรัน parseExamResults ใน isolate แยก
+      return compute(parseExamResults, body);
+    } else {
+      throw Exception(
+        'Failed to load Exam Results (status ${response.statusCode})',
+      );
+    }
   } catch (e) {
-    debugPrint('Error during http.delete: $e');
-    return 0;
+    throw Exception('Error fetching exam results: $e');
   }
 }

@@ -1,148 +1,172 @@
-import 'dart:convert';
-import 'package:flutter/material.dart';
-// 1. เปลี่ยนการ import model เป็น exam_result.dart
-import '../model/exam_result.dart';
-import 'package:http/http.dart' as http;
+// screen/add_exam_result_screen.dart
 
-// 2. เปลี่ยนชื่อคลาสเป็น AddExamResultScreen
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import '../model/exam_result.dart';
+// import '../model/student.dart'; // No longer needed
+// import '../model/course.dart'; // No longer needed
+
+// (ฟังก์ชันนี้ควรจะเหมือนกับในไฟล์ ExamResultScreen.dart)
+String getApiBaseUrl() {
+  if (kIsWeb) return 'http://localhost';
+  if (Platform.isAndroid) return 'http://10.0.2.2';
+  return 'http://localhost';
+}
+
+const String apiBasePath = '/pakapol/api';
+
 class AddExamResultScreen extends StatefulWidget {
   const AddExamResultScreen({super.key});
+
   @override
   State<AddExamResultScreen> createState() => _AddExamResultScreenState();
 }
 
 class _AddExamResultScreenState extends State<AddExamResultScreen> {
-  // 3. เปลี่ยนชื่อ Controller ให้สื่อความหมายมากขึ้น
-  TextEditingController studentNameController = TextEditingController();
-  TextEditingController studentCodeController = TextEditingController();
-  TextEditingController pointController = TextEditingController();
+  final TextEditingController _studentCodeController = TextEditingController();
+  final TextEditingController _courseCodeController = TextEditingController();
+  final TextEditingController _pointController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  Future<void> _onSave() async {
+    // ⭐️ 1. ตรวจสอบข้อมูลว่าง
+    if (_studentCodeController.text.isEmpty ||
+        _courseCodeController.text.isEmpty ||
+        _pointController.text.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('กรุณากรอกข้อมูลให้ครบถ้วน'),
+              backgroundColor: Colors.orange),
+        );
+      }
+      return;
+    }
+
+    final newResult = ExamResult(
+      id: 0, // Placeholder
+      studentCode: _studentCodeController.text,
+      courseCode: _courseCodeController.text,
+      point: int.tryParse(_pointController.text) ?? 0,
+      studentName: _studentCodeController.text, // Placeholder Name
+      courseName: _courseCodeController.text, // Placeholder Name
+    );
+
+    try {
+      // ⭐️ 2. เรียกใช้ฟังก์ชัน API และรับค่า Status Code
+      int statusCode = await addExamResult(newResult);
+      if (!mounted) return; // เช็ค mounted ก่อนเข้าถึง context
+
+      if (statusCode == 201 || statusCode == 200) {
+        // ⭐️ 3. สำเร็จ
+        Navigator.pop(context, true);
+      } else if (statusCode == 0) {
+        // ⭐️ 4. ดักจับ Network Error (ตามรูปแบบ 0 ที่กำหนดใน addExamResult)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Network Error: Could not connect to the server.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      } else {
+        // ⭐️ 5. ดักจับ Status Code อื่นๆ (เช่น 400, 500)
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to add result. Status Code: $statusCode'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      // ⭐️ 6. ดักจับ Error อื่นๆ (เช่น การแปลงข้อมูลผิดพลาด)
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An unexpected error occurred: $e'),
+            backgroundColor: Colors.deepOrange,
+          ),
+        );
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    // ⭐️ โครงสร้าง UI ถูกปรับให้เหลือแค่ TextField 3 ตัวแล้ว (ตามที่คุณได้แก้ไขก่อนหน้า)
     return Scaffold(
       appBar: AppBar(
-        // 4. เปลี่ยน Title ของหน้าจอ
-        title: const Text("Add Exam Result"),
+        title: const Text('Add Exam Result'),
         actions: [
           IconButton(
-            onPressed: () async {
-              if (studentCodeController.text.isNotEmpty &&
-                  studentNameController.text.isNotEmpty &&
-                  pointController.text.isNotEmpty) {
-                try {
-                  // 5. เรียกใช้ฟังก์ชัน insertExamResult
-                  int rt = await insertExamResult(
-                    ExamResult(
-                      studentCode: studentCodeController.text,
-                      studentName: studentNameController.text,
-                      point: double.parse(pointController.text),
-                    ),
-                  );
-
-                  print('API Response Status Code: $rt');
-
-                  if (rt == 201 || rt == 200) {
-                    if (mounted) Navigator.pop(context);
-                  } else if (rt == 0) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                              'Network Error: Could not connect to the server.'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  } else {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content:
-                              Text('Failed to add result. Status Code: $rt'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                } catch (e) {
-                  print('Error in onPressed: $e');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('An unexpected error occurred: $e'),
-                        backgroundColor: Colors.deepOrange,
-                      ),
-                    );
-                  }
-                }
-              }
-            },
-            icon: const Icon(Icons.save),
+            onPressed: _onSave, 
+            icon: const Icon(Icons.save)
           ),
         ],
       ),
-      body: Container(
-        padding: const EdgeInsets.all(5.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            // 6. เปลี่ยน UI Fields ให้สอดคล้องกับข้อมูลผลสอบ
-            TextField(
-              controller: studentCodeController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Student Code',
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _studentCodeController,
+                decoration: const InputDecoration(
+                  labelText: 'Student Code',
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: studentNameController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Student Name',
+              const SizedBox(height: 24),
+              TextField(
+                controller: _courseCodeController,
+                decoration: const InputDecoration(
+                  labelText: 'Course Code',
+                  border: OutlineInputBorder(),
+                ),
               ),
-            ),
-            const SizedBox(height: 10),
-            // เปลี่ยนจาก Dropdown เป็น TextField สำหรับ Point
-            TextField(
-              controller: pointController,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Point',
+              const SizedBox(height: 24),
+              TextField(
+                controller: _pointController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Point',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-// 7. เปลี่ยนฟังก์ชันสำหรับส่งข้อมูลไปยัง API ของ exam_result
-Future<int> insertExamResult(ExamResult result) async {
-  final requestBody = jsonEncode(<String, dynamic>{
-    'student_code': result.studentCode,
-    'student_name': result.studentName,
-    'point': result.point.toString(),
-  });
+// ================== API FUNCTIONS (Add Screen) ==================
 
-  print('Sending data to API: $requestBody');
-
+// ฟังก์ชันสำหรับ "เพิ่ม" ข้อมูล (POST)
+Future<int> addExamResult(ExamResult newResult) async {
   try {
-    // *** สำคัญ: คุณต้องเปลี่ยน URL นี้ให้เป็น API สำหรับบันทึกผลสอบของคุณ ***
+    final url = '${getApiBaseUrl()}$apiBasePath/exam_results.php';
+
     final response = await http.post(
-      Uri.parse('http://192.168.56.1/pakapol/api/exam_result.php'),
+      Uri.parse(url),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
-      body: requestBody,
+      body: jsonEncode(newResult.toJson()),
     );
-
-    print('API Response Body: ${response.body}');
     return response.statusCode;
   } catch (e) {
+    // ⭐️ 7. คืนค่า 0 หากเกิด Network/Connection Error
     print('Error during http.post: $e');
-    return 0; // คืนค่า 0 เพื่อบอกให้ UI รู้ว่าเกิด Network Error
+    return 0; // คืนค่า 0 เพื่อบอกให้ UI จัดการ Network Error
   }
 }

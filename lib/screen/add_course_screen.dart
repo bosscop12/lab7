@@ -103,7 +103,7 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
             ),
             const SizedBox(height: 10),
             DropdownButtonFormField<String>(
-              initialValue: dropdownValue,
+              value: dropdownValue,
               onChanged: (String? value) {
                 setState(() {
                   dropdownValue = value!;

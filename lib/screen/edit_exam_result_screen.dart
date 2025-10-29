@@ -1,142 +1,233 @@
+// screen/edit_exam_result_screen.dart
+
 import 'dart:convert';
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../model/exam_result.dart';
 import 'package:http/http.dart' as http;
+import '../model/exam_result.dart';
+// import '../model/student.dart'; // No longer needed
+// import '../model/course.dart'; // No longer needed
+
+// (ฟังก์ชันนี้ควรจะเหมือนกับในไฟล์ ExamResultScreen.dart)
+String getApiBaseUrl() {
+  if (kIsWeb) return 'http://localhost';
+  // ⭐️ ใช้ 10.0.2.2 สำหรับ Android Emulator
+  if (Platform.isAndroid) return 'http://10.0.2.2';
+  // ⭐️ (ถ้าใช้มือถือจริง หรือ API อยู่อีกเครื่อง ให้ใส่ IP นั้นแทน)
+  // if (Platform.isAndroid) return 'http://10.96.33.115';
+  return 'http://localhost';
+}
+
+const String apiBasePath = '/pakapol/api';
 
 class EditExamResultScreen extends StatefulWidget {
-  final ExamResult? examResult;
-  const EditExamResultScreen({super.key, this.examResult});
+  final ExamResult examResult;
+  const EditExamResultScreen({super.key, required this.examResult});
+
   @override
   State<EditExamResultScreen> createState() => _EditExamResultScreenState();
 }
 
 class _EditExamResultScreenState extends State<EditExamResultScreen> {
-  ExamResult? examResult;
-  TextEditingController studentNameController = TextEditingController();
-  TextEditingController studentCodeController = TextEditingController();
-  TextEditingController pointController = TextEditingController();
+  // ⭐️ 1. เหลือแค่ TextEditingController สำหรับ point
+  late TextEditingController _pointController;
+
+  // ⭐️ 2. ลบ _dataFuture, _selectedStudentCode, _selectedCourseCode ทิ้ง
 
   @override
   void initState() {
     super.initState();
-    examResult = widget.examResult!;
-    studentCodeController.text = examResult!.studentCode;
-    studentNameController.text = examResult!.studentName;
-    pointController.text = examResult!.point.toString();
+    // ⭐️ 3. เหลือแค่ _pointController ที่ผูกกับค่าเดิม
+    _pointController =
+        TextEditingController(text: widget.examResult.point.toString());
+
+    // ⭐️ 4. ลบการเรียก Future.wait ออก
+  }
+
+  Future<void> _onSave() async {
+    // ⭐️ 5. ตรวจสอบแค่ point เท่านั้น
+    if (_pointController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('กรุณากรอกคะแนน'),
+            backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    // ใช้ studentCode และ courseCode เดิม แต่สร้าง newResult เพื่อส่งไป API
+    final updatedResult = ExamResult(
+      id: widget.examResult.id,
+      // ⭐️ 6. ใช้ค่าเดิม (readonly)
+      studentCode: widget.examResult.studentCode,
+      courseCode: widget.examResult.courseCode,
+      // ⭐️ 7. ใช้ค่า point ที่แก้ไข
+      point: int.tryParse(_pointController.text) ?? 0,
+      // (Name จะถูกดึงมาใหม่ในหน้า List อยู่แล้ว)
+      studentName: widget.examResult.studentName,
+      courseName: widget.examResult.courseName,
+    );
+
+    try {
+      int statusCode = await updateExamResult(widget.examResult, updatedResult);
+      if (!mounted) return;
+
+      if (statusCode == 200) {
+        Navigator.pop(context, true);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('เกิดข้อผิดพลาดในการแก้ไขข้อมูล: Status $statusCode'),
+              backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ: $e'),
+            backgroundColor: Colors.deepOrange),
+      );
+    }
+  }
+
+  Future<void> _onDelete() async {
+    bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('ยืนยันการลบ'),
+          content: const Text('คุณต้องการลบผลสอบนี้ใช่หรือไม่?'),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('ยกเลิก'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('ลบ'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      try {
+        int statusCode = await deleteExamResult(widget.examResult);
+        if (!mounted) return;
+
+        if (statusCode == 200) {
+          Navigator.pop(context, true);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+                content: Text('เกิดข้อผิดพลาดในการลบข้อมูล: Status $statusCode'),
+                backgroundColor: Colors.red),
+          );
+        }
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('เกิดข้อผิดพลาดในการเชื่อมต่อ: $e'),
+              backgroundColor: Colors.deepOrange),
+        );
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Edit Exam Result"),
+        title: const Text('Edit Exam Result'),
         actions: [
-          IconButton(
-            onPressed: () async {
-              try {
-                int rt = await updateExamResult(
-                  ExamResult(
-                    studentCode: studentCodeController.text,
-                    studentName: studentNameController.text,
-                    point: double.parse(pointController.text),
-                  ),
-                );
-
-                if (rt == 200) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Update successful!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                  if (mounted) Navigator.pop(context);
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Update failed. Status Code: $rt'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              } catch (e) {
-                print('Error during update: $e');
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('An error occurred: $e'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            icon: const Icon(Icons.save),
-          ),
+          IconButton(onPressed: _onSave, icon: const Icon(Icons.save)),
+          IconButton(onPressed: _onDelete, icon: const Icon(Icons.delete)),
         ],
       ),
-      body: Container(
-        padding: const EdgeInsets.all(5.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.start,
-          children: [
-            TextField(
-              controller: studentCodeController,
-              enabled: true,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Student Code',
+      // ⭐️ 8. ลบ FutureBuilder ออก
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ⭐️ 9. แสดง Student Code เป็น Text/Read-only
+              ListTile(
+                title: Text(widget.examResult.studentCode),
+                subtitle: const Text('Student Code (Not Editable)'),
+                leading: const Icon(Icons.person),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: studentNameController,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Student Name',
+              const Divider(),
+              // ⭐️ 10. แสดง Course Code เป็น Text/Read-only
+              ListTile(
+                title: Text(widget.examResult.courseCode),
+                subtitle: const Text('Course Code (Not Editable)'),
+                leading: const Icon(Icons.class_),
               ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: pointController,
-              keyboardType: TextInputType.numberWithOptions(
-                decimal: true,
-              ), // Keyboard สำหรับทศนิยม
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Point',
+              const Divider(),
+              const SizedBox(height: 24),
+              // ⭐️ 11. เหลือแค่ TextField สำหรับ Point ที่แก้ไขได้
+              TextField(
+                controller: _pointController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Point',
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-Future<int> updateExamResult(ExamResult result) async {
-  final requestBody = jsonEncode(<String, dynamic>{
-    'student_code': result.studentCode,
-    'student_name': result.studentName,
-    'point': result.point.toString(),
-  });
+// ================== API FUNCTIONS (Edit Screen) ==================
+// ⭐️ 12. ลบ fetchStudents() และ fetchCourses() ออกไป
+/*
+Future<List<Student>> fetchStudents() async { ... }
+Future<List<Course>> fetchCourses() async { ... }
+*/
 
-  print('Sending update data to API: $requestBody');
-
+Future<int> updateExamResult(
+    ExamResult oldResult, ExamResult newResult) async {
   try {
-    // *** FIX: แก้ไข parameter ใน URL ให้ถูกต้อง ***
+    // ⭐️ 2. เปลี่ยน URL ให้ใช้ id
+    final url =
+        '${getApiBaseUrl()}$apiBasePath/exam_results.php?id=${oldResult.id}';
+
     final response = await http.put(
-      Uri.parse(
-        'http://192.168.56.1/pakapol/api/exam_result.php?student_code=${result.studentCode}',
-      ),
+      Uri.parse(url),
       headers: <String, String>{
         'Content-Type': 'application/json; charset=UTF-8',
       },
-      body: requestBody,
+      // ⭐️ 3. ใช้ toJson() จากโมเดลที่แก้ไขแล้ว
+      body: jsonEncode(newResult.toJson()),
     );
-
-    print('Update Response Status: ${response.statusCode}');
-    print('Update Response Body: ${response.body}');
     return response.statusCode;
   } catch (e) {
-    print('Error during http.put: $e');
-    return 0; // คืนค่า 0 เพื่อบอกว่าเกิด Network Error
+    throw Exception('Failed to connect to the server: $e');
+  }
+}
+
+Future<int> deleteExamResult(ExamResult result) async {
+  try {
+    // ⭐️ 4. เปลี่ยน URL ให้ใช้ id
+    final url =
+        '${getApiBaseUrl()}$apiBasePath/exam_results.php?id=${result.id}';
+
+    final response = await http.delete(
+      Uri.parse(url),
+      headers: <String, String>{
+        'Content-Type': 'application/json; charset=UTF-8',
+      },
+    );
+    return response.statusCode;
+  } catch (e) {
+    throw Exception('Failed to connect to the server: $e');
   }
 }

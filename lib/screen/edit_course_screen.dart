@@ -67,7 +67,7 @@ class _EditCourseScreenState extends State<EditCourseScreen> {
           children: [
             TextField(
               controller: codeController,
-              enabled: true, // รหัสวิชาไม่ควรแก้ไขได้
+              enabled: false, // รหัสวิชาไม่ควรแก้ไขได้
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 // เปลี่ยน label
@@ -105,7 +105,8 @@ Future<int> updateCourse(Course course) async {
   // TODO: 3. เปลี่ยน URL และ parameter สำหรับการอัปเดตข้อมูล
   final response = await http.put(
     Uri.parse(
-      'http://192.168.56.1/pakapol/api/course.php?course_code=${course.courseCode}',
+      'http://192.168.56.1/pakapol/api/course.php?course_code='+
+          course.courseCode,
     ),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
