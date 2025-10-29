@@ -195,7 +195,7 @@ class _CourseScreenState extends State<CourseScreen> {
 Future<List<Course>> fetchCourses() async {
   // TODO: 4. เปลี่ยน URL ของ API ไปยัง endpoint ของ course
   final response = await http.get(
-    Uri.parse('http://192.168.56.1/pakapol/api/course.php'),
+    Uri.parse('http://192.168.56.1/pakapol/api/courses.php'),
   );
   if (response.statusCode == 200) {
     // เรียกใช้ฟังก์ชัน parseCourses

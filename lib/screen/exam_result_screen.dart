@@ -185,7 +185,7 @@ class _ExamResultScreenState extends State<ExamResultScreen> {
 // ---------------- API Functions ----------------
 Future<List<ExamResult>> fetchExamResults() async {
   final response = await http.get(
-    Uri.parse('http://192.168.56.1/pakapol/api/exam_result.php'),
+    Uri.parse('http://192.168.56.1/pakapol/api/exam_results.php'),
   );
 
   if (response.statusCode == 200) {

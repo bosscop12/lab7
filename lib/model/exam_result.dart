@@ -15,7 +15,7 @@ class ExamResult {
     return ExamResult(
       // ใช้ '??' เพื่อกำหนดค่าเริ่มต้นเป็นข้อความว่าง ('') หากข้อมูลที่ได้รับมาเป็น null
       studentCode: json['student_code'] ?? '',
-      studentName: json['student_name'] ?? '',
+      studentName: json['course_code'] ?? '',
 
       // 2. เปลี่ยนจาก int.parse เป็น double.parse เพื่อแปลงเลขทศนิยม
       // โดยกำหนดค่าเริ่มต้นเป็น '0.0' หากเป็น null

@@ -215,7 +215,7 @@ class _ExamScreenState extends State<ExamScreen> {
 // ================= API =================
 Future<List<ExamResults>> fetchExams() async {
   final response = await http.get(
-    Uri.parse('http://158.108.112.140/wachira/api/exam_results.php'),
+    Uri.parse('http://192.168.56.1/pakapol/api/exam_results.php'),
   );
   if (response.statusCode == 200) {
     return compute(parseExams, response.body);
@@ -234,7 +234,7 @@ List<ExamResults> parseExams(String responseBody) {
 Future<int> deleteExam(ExamResults exam) async {
   final response = await http.delete(
     Uri.parse(
-      'http://158.108.112.140/wachira/api/exam_results.php?id=${exam.id}',
+      'http://192.168.56.1/pakapol/api/exam_results.php?id=${exam.id}',
     ),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',

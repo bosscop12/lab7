@@ -103,7 +103,7 @@ class _EditExamScreenState extends State<EditExamScreen> {
 Future<int> updateExam(ExamResults exam) async {
   final response = await http.put(
     Uri.parse(
-      'http://158.108.112.140/wachira/api/exam_results.php?id=${exam.id}',
+      'http://192.168.56.1/pakapol/api/exam_results.php?id=${exam.id}',
     ),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
@@ -121,7 +121,7 @@ Future<int> updateExam(ExamResults exam) async {
 /// Add Exam
 Future<int> addExam(ExamResults exam) async {
   final response = await http.post(
-    Uri.parse('http://158.108.112.140/wachira/api/exam_results.php'),
+    Uri.parse('http://192.168.56.1/pakapol/api/exam_results.php'),
     headers: <String, String>{
       'Content-Type': 'application/json; charset=UTF-8',
     },
