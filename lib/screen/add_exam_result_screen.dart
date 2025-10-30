@@ -1,16 +1,11 @@
-// screen/add_exam_result_screen.dart
-
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import '../model/exam_result.dart';
-// import '../model/student.dart'; // No longer needed
-// import '../model/course.dart'; // No longer needed
 
-// (ฟังก์ชันนี้ควรจะเหมือนกับในไฟล์ ExamResultScreen.dart)
+import '../model/exam_result.dart';
+
 String getApiBaseUrl() {
   if (kIsWeb) return 'http://localhost';
   if (Platform.isAndroid) return 'http://10.0.2.2';
@@ -27,146 +22,202 @@ class AddExamResultScreen extends StatefulWidget {
 }
 
 class _AddExamResultScreenState extends State<AddExamResultScreen> {
-  final TextEditingController _studentCodeController = TextEditingController();
-  final TextEditingController _courseCodeController = TextEditingController();
+  String? _selectedStudentCode;
+  String? _selectedCourseCode;
   final TextEditingController _pointController = TextEditingController();
+
+  late Future<List<ExamResult>> _examResultsFuture;
 
   @override
   void initState() {
     super.initState();
+    _examResultsFuture = fetchExamResults();
   }
 
-  Future<void> _onSave() async {
-    // ⭐️ 1. ตรวจสอบข้อมูลว่าง
-    if (_studentCodeController.text.isEmpty ||
-        _courseCodeController.text.isEmpty ||
+  Future<List<ExamResult>> fetchExamResults() async {
+    final url = '${getApiBaseUrl()}$apiBasePath/exam_results.php';
+    final response = await http.get(Uri.parse(url));
+    if (response.statusCode == 200) {
+      final body = utf8.decode(response.bodyBytes);
+      final decoded = jsonDecode(body) as List;
+      return decoded.map((e) => ExamResult.fromJson(e)).toList();
+    } else {
+      throw Exception('Failed to fetch data');
+    }
+  }
+
+  Future<int> addExamResult(ExamResult newResult) async {
+    try {
+      final url = '${getApiBaseUrl()}$apiBasePath/exam_results.php';
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json; charset=UTF-8'},
+        body: jsonEncode(newResult.toJson()),
+      );
+      return response.statusCode;
+    } catch (e) {
+      print('Error: $e');
+      return 0;
+    }
+  }
+
+  Future<void> _onSave(List<ExamResult> allResults) async {
+    if (_selectedStudentCode == null ||
+        _selectedCourseCode == null ||
         _pointController.text.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('กรุณากรอกข้อมูลให้ครบถ้วน'),
-              backgroundColor: Colors.orange),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('กรุณาเลือกนักเรียน วิชา และกรอกคะแนน'),
+          backgroundColor: Colors.orange,
+        ),
+      );
       return;
     }
 
+    // 🔍 ดึงชื่อจากข้อมูลเดิม
+    final studentName = allResults
+            .firstWhere((r) => r.studentCode == _selectedStudentCode,
+                orElse: () => ExamResult(
+                    id: 0,
+                    studentCode: '',
+                    courseCode: '',
+                    studentName: '',
+                    courseName: '',
+                    point: 0))
+            .studentName ??
+        '';
+
+    final courseName = allResults
+            .firstWhere((r) => r.courseCode == _selectedCourseCode,
+                orElse: () => ExamResult(
+                    id: 0,
+                    studentCode: '',
+                    courseCode: '',
+                    studentName: '',
+                    courseName: '',
+                    point: 0))
+            .courseName ??
+        '';
+
     final newResult = ExamResult(
-      id: 0, // Placeholder
-      studentCode: _studentCodeController.text,
-      courseCode: _courseCodeController.text,
+      id: 0,
+      studentCode: _selectedStudentCode!,
+      studentName: studentName,
+      courseCode: _selectedCourseCode!,
+      courseName: courseName,
       point: int.tryParse(_pointController.text) ?? 0,
-      studentName: _studentCodeController.text, // Placeholder Name
-      courseName: _courseCodeController.text, // Placeholder Name
     );
 
-    try {
-      // ⭐️ 2. เรียกใช้ฟังก์ชัน API และรับค่า Status Code
-      int statusCode = await addExamResult(newResult);
-      if (!mounted) return; // เช็ค mounted ก่อนเข้าถึง context
+    int status = await addExamResult(newResult);
+    if (!mounted) return;
 
-      if (statusCode == 201 || statusCode == 200) {
-        // ⭐️ 3. สำเร็จ
-        Navigator.pop(context, true);
-      } else if (statusCode == 0) {
-        // ⭐️ 4. ดักจับ Network Error (ตามรูปแบบ 0 ที่กำหนดใน addExamResult)
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Network Error: Could not connect to the server.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } else {
-        // ⭐️ 5. ดักจับ Status Code อื่นๆ (เช่น 400, 500)
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Failed to add result. Status Code: $statusCode'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (e) {
-      // ⭐️ 6. ดักจับ Error อื่นๆ (เช่น การแปลงข้อมูลผิดพลาด)
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('An unexpected error occurred: $e'),
-            backgroundColor: Colors.deepOrange,
-          ),
-        );
-      }
+    if (status == 200 || status == 201) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('บันทึกล้มเหลว (Status: $status)'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // ⭐️ โครงสร้าง UI ถูกปรับให้เหลือแค่ TextField 3 ตัวแล้ว (ตามที่คุณได้แก้ไขก่อนหน้า)
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add Exam Result'),
-        actions: [
-          IconButton(
-            onPressed: _onSave, 
-            icon: const Icon(Icons.save)
-          ),
-        ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              TextField(
-                controller: _studentCodeController,
-                decoration: const InputDecoration(
-                  labelText: 'Student Code',
-                  border: OutlineInputBorder(),
+      body: FutureBuilder<List<ExamResult>>(
+        future: _examResultsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('เกิดข้อผิดพลาด: ${snapshot.error}'));
+          }
+          final results = snapshot.data ?? [];
+
+          // ✅ สร้าง list เฉพาะที่ไม่ซ้ำ
+          final studentList = {
+            for (var r in results) r.studentCode: r.studentName
+          };
+          final courseList = {
+            for (var r in results) r.courseCode: r.courseName
+          };
+
+          return Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: ListView(
+              children: [
+                // Dropdown นักเรียน
+                DropdownButtonFormField<String>(
+                  value: _selectedStudentCode,
+                  items: studentList.entries
+                      .map(
+                        (e) => DropdownMenuItem<String>(
+                          value: e.key,
+                          child: Text('${e.value} ${e.key}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (val) => setState(() {
+                    _selectedStudentCode = val;
+                  }),
+                  decoration: const InputDecoration(
+                    labelText: 'เลือกนักเรียน',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _courseCodeController,
-                decoration: const InputDecoration(
-                  labelText: 'Course Code',
-                  border: OutlineInputBorder(),
+                const SizedBox(height: 24),
+
+                // Dropdown วิชา
+                DropdownButtonFormField<String>(
+                  value: _selectedCourseCode,
+                  items: courseList.entries
+                      .map(
+                        (e) => DropdownMenuItem<String>(
+                          value: e.key,
+                          child: Text('${e.value} ${e.key}'),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (val) => setState(() {
+                    _selectedCourseCode = val;
+                  }),
+                  decoration: const InputDecoration(
+                    labelText: 'เลือกรายวิชา',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              TextField(
-                controller: _pointController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: 'Point',
+                const SizedBox(height: 24),
+
+                // ช่องคะแนน (พิมพ์ได้)
+                TextField(
+                  controller: _pointController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'คะแนน (Point)',
+                    border: OutlineInputBorder(),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(height: 32),
+
+                ElevatedButton.icon(
+                  onPressed: () => _onSave(results),
+                  icon: const Icon(Icons.save),
+                  label: const Text('บันทึกผลสอบ'),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(50),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
-  }
-}
-
-// ================== API FUNCTIONS (Add Screen) ==================
-
-// ฟังก์ชันสำหรับ "เพิ่ม" ข้อมูล (POST)
-Future<int> addExamResult(ExamResult newResult) async {
-  try {
-    final url = '${getApiBaseUrl()}$apiBasePath/exam_results.php';
-
-    final response = await http.post(
-      Uri.parse(url),
-      headers: <String, String>{
-        'Content-Type': 'application/json; charset=UTF-8',
-      },
-      body: jsonEncode(newResult.toJson()),
-    );
-    return response.statusCode;
-  } catch (e) {
-    // ⭐️ 7. คืนค่า 0 หากเกิด Network/Connection Error
-    print('Error during http.post: $e');
-    return 0; // คืนค่า 0 เพื่อบอกให้ UI จัดการ Network Error
   }
 }

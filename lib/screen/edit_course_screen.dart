@@ -67,7 +67,7 @@ class _EditCourseScreenState extends State<EditCourseScreen> {
           children: [
             TextField(
               controller: codeController,
-              enabled: false, // รหัสวิชาไม่ควรแก้ไขได้
+              enabled: true, // รหัสวิชาไม่ควรแก้ไขได้
               decoration: const InputDecoration(
                 border: OutlineInputBorder(),
                 // เปลี่ยน label

@@ -12,7 +12,7 @@ class AddCourseScreen extends StatefulWidget {
 class _AddCourseScreenState extends State<AddCourseScreen> {
   TextEditingController nameController = TextEditingController();
   TextEditingController codeController = TextEditingController();
-  String dropdownValue = "3";
+  TextEditingController creditController = TextEditingController(text: "3"); // default 3
 
   @override
   Widget build(BuildContext context) {
@@ -23,13 +23,14 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
           IconButton(
             onPressed: () async {
               if (codeController.text.isNotEmpty &&
-                  nameController.text.isNotEmpty) {
+                  nameController.text.isNotEmpty &&
+                  creditController.text.isNotEmpty) {
                 try {
                   int rt = await insertCourse(
                     Course(
                       courseCode: codeController.text,
                       courseName: nameController.text,
-                      credit: int.parse(dropdownValue),
+                      credit: int.tryParse(creditController.text) ?? 0,
                     ),
                   );
 
@@ -38,7 +39,6 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                   if (rt == 201 || rt == 200) {
                     if (mounted) Navigator.pop(context);
                   } else if (rt == 0) {
-                    // ดักจับ Error ที่เรากำหนดเองสำหรับปัญหา Network
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -50,7 +50,6 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                       );
                     }
                   } else {
-                    // สำหรับ Status Code อื่นๆ ที่ไม่ใช่ความสำเร็จ
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -63,7 +62,6 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
                     }
                   }
                 } catch (e) {
-                  // ดักจับ Error อื่นๆ ที่อาจเกิดขึ้น เช่น การแปลงข้อมูลผิดพลาด
                   print('Error in onPressed: $e');
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -102,27 +100,13 @@ class _AddCourseScreenState extends State<AddCourseScreen> {
               ),
             ),
             const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              value: dropdownValue,
-              onChanged: (String? value) {
-                setState(() {
-                  dropdownValue = value!;
-                });
-              },
+            TextField(
+              controller: creditController,
+              keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Credit',
                 border: OutlineInputBorder(),
+                labelText: 'Credit',
               ),
-              items: ['1', '2', '3'].map<DropdownMenuItem<String>>((
-                String value,
-              ) {
-                return DropdownMenuItem<String>(
-                  value: value,
-                  child: Row(
-                    children: [const SizedBox(width: 10), Text(value)],
-                  ),
-                );
-              }).toList(),
             ),
           ],
         ),
@@ -152,10 +136,7 @@ Future<int> insertCourse(Course course) async {
     print('API Response Body: ${response.body}');
     return response.statusCode;
   } catch (e) {
-    // --- START: นี่คือส่วนสำคัญที่เพิ่มเข้ามา ---
-    // หากเกิด Error ระหว่างการเชื่อมต่อ (เช่น Network, Timeout)
     print('Error during http.post: $e');
-    return 0; // คืนค่า 0 เพื่อบอกให้ UI รู้ว่าเกิด Network Error
-    // --- END: นี่คือส่วนสำคัญที่เพิ่มเข้ามา ---
+    return 0; // คืนค่า 0 หากเกิด Network Error
   }
 }
